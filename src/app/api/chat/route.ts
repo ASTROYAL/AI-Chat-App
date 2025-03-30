@@ -1,15 +1,20 @@
 import { Message } from '@/types/chat';
-import Anthropic from '@anthropic-ai/sdk';
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Initialize API clients dynamically
+const getOpenAI = async () => {
+  const { OpenAI } = await import('openai');
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+};
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+const getAnthropic = async () => {
+  const { Anthropic } = await import('@anthropic-ai/sdk');
+  return new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+  });
+};
 
 export async function POST(req: Request) {
   try {
@@ -33,6 +38,7 @@ export async function POST(req: Request) {
     try {
       switch (modelProvider) {
         case 'gpt':
+          const openai = await getOpenAI();
           const completion = await openai.chat.completions.create({
             model: model,
             messages: messages,
@@ -46,7 +52,8 @@ export async function POST(req: Request) {
           break;
 
         case 'claude':
-          const stream = await anthropic.messages.create({
+          const anthropic = await getAnthropic();
+          const claudeStream = await anthropic.messages.create({
             model: model,
             messages: messages.map((msg: Message) => ({
               role: msg.role === 'assistant' ? 'assistant' : 'user',
@@ -55,7 +62,7 @@ export async function POST(req: Request) {
             stream: true,
           });
 
-          for await (const chunk of stream) {
+          for await (const chunk of claudeStream) {
             const content = chunk.delta?.text || '';
             await writer.write(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`));
           }

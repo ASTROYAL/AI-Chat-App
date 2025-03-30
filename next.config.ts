@@ -29,6 +29,7 @@ const nextConfig = {
       },
     ];
   },
+  transpilePackages: ['@anthropic-ai/sdk', 'openai'],
 };
 
 export default nextConfig;
