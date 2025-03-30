@@ -16,47 +16,65 @@ export async function POST(req: Request) {
     const { messages, model } = await req.json();
 
     if (!messages || !model) {
-      return NextResponse.json(
-        { error: 'Messages and model are required' },
-        { status: 400 }
+      return new NextResponse(
+        JSON.stringify({ error: 'Messages and model are required' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    let response;
-    const modelConfig = model.split('-')[0];
+    const [modelProvider] = model.split('-');
 
-    switch (modelConfig) {
-      case 'gpt':
-        response = await openai.chat.completions.create({
-          model: model,
-          messages: messages.map((msg: Message) => ({
-            role: msg.role,
-            content: msg.content,
-          })),
-          stream: true,
-        });
-        break;
+    // Create a TransformStream for streaming the response
+    const stream = new TransformStream();
+    const writer = stream.writable.getWriter();
+    const encoder = new TextEncoder();
 
-      case 'claude':
-        response = await anthropic.messages.create({
-          model: model,
-          max_tokens: 4096,
-          messages: messages.map((msg: Message) => ({
-            role: msg.role === 'assistant' ? 'assistant' : 'user',
-            content: msg.content,
-          })),
-          stream: true,
-        });
-        break;
+    // Process the request based on the model provider
+    try {
+      switch (modelProvider) {
+        case 'gpt':
+          const completion = await openai.chat.completions.create({
+            model: model,
+            messages: messages,
+            stream: true,
+          });
 
-      default:
-        return NextResponse.json(
-          { error: 'Unsupported model' },
-          { status: 400 }
-        );
+          for await (const chunk of completion) {
+            const content = chunk.choices[0]?.delta?.content || '';
+            await writer.write(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`));
+          }
+          break;
+
+        case 'claude':
+          const stream = await anthropic.messages.create({
+            model: model,
+            messages: messages.map((msg: Message) => ({
+              role: msg.role === 'assistant' ? 'assistant' : 'user',
+              content: msg.content,
+            })),
+            stream: true,
+          });
+
+          for await (const chunk of stream) {
+            const content = chunk.delta?.text || '';
+            await writer.write(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`));
+          }
+          break;
+
+        default:
+          throw new Error(`Unsupported model: ${model}`);
+      }
+
+      await writer.close();
+    } catch (error) {
+      console.error('Error processing request:', error);
+      await writer.write(
+        encoder.encode(`data: ${JSON.stringify({ error: 'Error processing request' })}\n\n`)
+      );
+      await writer.close();
     }
 
-    return new Response(response.toReadableStream(), {
+    return new NextResponse(stream.readable, {
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
@@ -64,10 +82,10 @@ export async function POST(req: Request) {
       },
     });
   } catch (error) {
-    console.error('Error in chat completion:', error);
-    return NextResponse.json(
-      { error: 'Failed to generate response' },
-      { status: 500 }
+    console.error('Error in chat route:', error);
+    return new NextResponse(
+      JSON.stringify({ error: 'Internal server error' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
 } 
