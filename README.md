@@ -30,11 +30,16 @@ cd ai-chat-app
 npm install
 ```
 
-3. Create a `.env.local` file in the root directory and add your API keys:
-```
-OPENAI_API_KEY=your_openai_api_key_here
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
-```
+3. Set up environment variables:
+   - Copy `.env.example` to `.env.local`
+   - Get your API keys:
+     - OpenAI API key from: https://platform.openai.com/api-keys
+     - Anthropic API key from: https://console.anthropic.com/account/keys
+   - Add your API keys to `.env.local`:
+     ```
+     OPENAI_API_KEY=your_actual_openai_api_key
+     ANTHROPIC_API_KEY=your_actual_anthropic_api_key
+     ```
 
 4. Run the development server:
 ```bash
@@ -42,6 +47,13 @@ npm run dev
 ```
 
 5. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## Security Notes
+
+- Never commit your `.env.local` file or expose your API keys
+- Keep your API keys secure and private
+- Use environment variables for sensitive data
+- The `.env.example` file is provided as a template only
 
 ## Project Structure
 
